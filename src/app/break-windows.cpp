@@ -36,6 +36,7 @@
 #include <QPluginLoader>
 
 #include "app/layer-shell/interface.h"
+#include "lib/linux/strawberry.h"
 #include "lib/linux/system-check.h"
 #endif
 
@@ -57,6 +58,11 @@ BreakWindows::BreakWindows(QObject* parent) : AbstractBreakWindows(parent) {
       }
     }
   }
+  m_strawberry = new StrawberryWatcher(this);
+  connect(m_strawberry, &StrawberryWatcher::trackInfoChanged, this,
+          [this](const QString& title, const QString& artist) {
+            for (auto w : std::as_const(m_windows)) w->setMediaInfo(title, artist);
+          });
 #endif
 }
 
@@ -144,6 +150,9 @@ void BreakWindows::create(BreakWindowData data) {
             &BreakWindows::lockScreenRequested);
     connect(w, &BreakWindow::exitForceBreakRequested, this,
             &BreakWindows::exitForceBreakRequested);
+#ifdef Q_OS_LINUX
+    w->setMediaInfo(m_strawberry->title(), m_strawberry->artist());
+#endif
   }
   updateClocks();  // Set the initial clock
   clockUpdateTimer->start(3000);

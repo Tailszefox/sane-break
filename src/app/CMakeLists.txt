@@ -55,6 +55,11 @@ target_include_directories(
 )
 target_link_libraries(sane-gui PUBLIC Qt6::Widgets Qt6::Multimedia sane-lib)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  find_package(Qt6 REQUIRED COMPONENTS DBus)
+  target_link_libraries(sane-gui PRIVATE Qt6::DBus)
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   target_sources(sane-gui PRIVATE unix/signal-handler.h unix/signal-handler.cpp)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")

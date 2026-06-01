@@ -58,6 +58,8 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             linux/battery.h
             linux/screen-lock.cpp
             linux/program-monitor.cpp
+            linux/strawberry.cpp
+            linux/strawberry.h
             linux/system-check.cpp
             linux/system-check.h
   )

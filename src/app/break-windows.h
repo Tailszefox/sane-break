@@ -18,6 +18,7 @@
 #include "core/preferences.h"
 #ifdef Q_OS_LINUX
 #include "app/layer-shell/interface.h"
+class StrawberryWatcher;
 #endif
 
 class BreakWindows : public AbstractBreakWindows {
@@ -55,5 +56,6 @@ class BreakWindows : public AbstractBreakWindows {
 
 #ifdef Q_OS_LINUX
   LayerShellInterface* layerShell = nullptr;
+  StrawberryWatcher* m_strawberry = nullptr;
 #endif
 };

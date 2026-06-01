@@ -182,6 +182,21 @@ void BreakWindow::setTime(int remainingTime, QString estimatedEndTime) {
 
 void BreakWindow::setClock(QString hourMinute) { ui->clock->setText(hourMinute); }
 
+void BreakWindow::setMediaInfo(const QString& title, const QString& artist) {
+  if (title.isEmpty() && artist.isEmpty()) {
+    m_mediaText.clear();
+  } else {
+    m_mediaText = artist.isEmpty() ? title : QString("%1\n%2").arg(title, artist);
+  }
+  ui->mediaLabel->setText(m_mediaText);
+  updateMediaVisibility();
+}
+
+// Media info is only shown on the full screen break, not the flash prompt.
+void BreakWindow::updateMediaVisibility() {
+  ui->mediaLabel->setVisible(m_isFullScreen && !m_mediaText.isEmpty());
+}
+
 void BreakWindow::showButtons(AbstractBreakWindows::Buttons buttons, bool show) {
   // Lock screen is not supported on Flatpak
 #ifndef LINUX_DIST_FLATPAK
@@ -193,6 +208,8 @@ void BreakWindow::showButtons(AbstractBreakWindows::Buttons buttons, bool show) 
 }
 
 void BreakWindow::showFullScreen() {
+  m_isFullScreen = true;
+  updateMediaVisibility();
   mainWidget->setProperty("isFullScreen", true);
   if (m_supportTransparentInput) {
     // setWindowFlag will reparent the window and do a lot of unnecessary works
@@ -233,6 +250,7 @@ void BreakWindow::showFullScreen() {
 }
 
 void BreakWindow::showFlashPrompt() {
+  m_isFullScreen = false;
   mainWidget->setProperty("isFullScreen", false);
   if (m_supportTransparentInput) {
     windowHandle()->setFlag(Qt::WindowTransparentForInput, true);
@@ -260,6 +278,7 @@ void BreakWindow::showFlashPrompt() {
   ui->clock->setVisible(false);
   ui->breakEndTimeLabel->setVisible(false);
   ui->buttons->setVisible(false);
+  ui->mediaLabel->setVisible(false);
 
   QPropertyAnimation* resizeAnim =
       new QPropertyAnimation(m_waylandWorkaround ? mainWidget : this, "geometry");
