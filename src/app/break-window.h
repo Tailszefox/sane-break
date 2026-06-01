@@ -37,7 +37,7 @@ class BreakWindow : public QMainWindow {
 
   void setTime(int remainingTime, QString estimatedEndTime);
   void setClock(QString hourMinite);
-  void setMediaInfo(const QString& title, const QString& artist);
+  void setMediaInfo(const QString& title, const QString& album, const QString& artist);
   void showFullScreen();
   void showFlashPrompt();
   void showButtons(AbstractBreakWindows::Buttons buttons, bool show = true);

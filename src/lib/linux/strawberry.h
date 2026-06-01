@@ -17,18 +17,20 @@ class StrawberryWatcher : public QObject {
   explicit StrawberryWatcher(QObject* parent = nullptr);
 
   QString title() const { return m_title; }
+  QString album() const { return m_album; }
   QString artist() const { return m_artist; }
 
  signals:
-  void trackInfoChanged(QString title, QString artist);
+  void trackInfoChanged(QString title, QString album, QString artist);
 
  private:
   QDBusInterface* m_iface;
   QString m_title;
+  QString m_album;
   QString m_artist;
 
   void fetchAndNotify();
-  void updateInfo(const QString& title, const QString& artist);
+  void updateInfo(const QString& title, const QString& album, const QString& artist);
 
  private slots:
   void onPropertiesChanged(const QString& interface,

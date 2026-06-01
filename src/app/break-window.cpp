@@ -23,6 +23,7 @@
 #include <QSequentialAnimationGroup>
 #include <QSize>
 #include <QString>
+#include <QStringList>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -182,12 +183,14 @@ void BreakWindow::setTime(int remainingTime, QString estimatedEndTime) {
 
 void BreakWindow::setClock(QString hourMinute) { ui->clock->setText(hourMinute); }
 
-void BreakWindow::setMediaInfo(const QString& title, const QString& artist) {
-  if (title.isEmpty() && artist.isEmpty()) {
-    m_mediaText.clear();
-  } else {
-    m_mediaText = artist.isEmpty() ? title : QString("%1\n%2").arg(title, artist);
-  }
+void BreakWindow::setMediaInfo(const QString& title, const QString& album,
+                               const QString& artist) {
+  // One field per line: title, then album, then artist. Skip empty fields.
+  QStringList parts;
+  if (!title.isEmpty()) parts << title;
+  if (!album.isEmpty()) parts << album;
+  if (!artist.isEmpty()) parts << artist;
+  m_mediaText = parts.join('\n');
   ui->mediaLabel->setText(m_mediaText);
   updateMediaVisibility();
 }

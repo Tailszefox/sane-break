@@ -30,7 +30,7 @@ StrawberryWatcher::StrawberryWatcher(QObject* parent)
 void StrawberryWatcher::fetchAndNotify() {
   QDBusReply<QDBusVariant> reply = m_iface->call("Get", kPlayerIface, "Metadata");
   if (!reply.isValid()) {
-    updateInfo({}, {});
+    updateInfo({}, {}, {});
     return;
   }
 
@@ -38,11 +38,12 @@ void StrawberryWatcher::fetchAndNotify() {
   // iterate it manually as a map rather than using the bulk >> operator.
   const QDBusArgument arg = reply.value().variant().value<QDBusArgument>();
   if (arg.currentType() != QDBusArgument::MapType) {
-    updateInfo({}, {});
+    updateInfo({}, {}, {});
     return;
   }
 
   QString title;
+  QString album;
   QStringList artists;
   arg.beginMap();
   while (!arg.atEnd()) {
@@ -54,6 +55,8 @@ void StrawberryWatcher::fetchAndNotify() {
 
     if (key == "xesam:title") {
       title = value.toString();
+    } else if (key == "xesam:album") {
+      album = value.toString();
     } else if (key == "xesam:artist") {
       // xesam:artist is an array of strings (as).
       if (value.canConvert<QStringList>()) {
@@ -65,14 +68,16 @@ void StrawberryWatcher::fetchAndNotify() {
   }
   arg.endMap();
 
-  updateInfo(title, artists.value(0));
+  updateInfo(title, album, artists.value(0));
 }
 
-void StrawberryWatcher::updateInfo(const QString& title, const QString& artist) {
-  if (m_title == title && m_artist == artist) return;
+void StrawberryWatcher::updateInfo(const QString& title, const QString& album,
+                                   const QString& artist) {
+  if (m_title == title && m_album == album && m_artist == artist) return;
   m_title = title;
+  m_album = album;
   m_artist = artist;
-  emit trackInfoChanged(m_title, m_artist);
+  emit trackInfoChanged(m_title, m_album, m_artist);
 }
 
 void StrawberryWatcher::onPropertiesChanged(const QString& /*interface*/,

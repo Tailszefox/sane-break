@@ -60,8 +60,9 @@ BreakWindows::BreakWindows(QObject* parent) : AbstractBreakWindows(parent) {
   }
   m_strawberry = new StrawberryWatcher(this);
   connect(m_strawberry, &StrawberryWatcher::trackInfoChanged, this,
-          [this](const QString& title, const QString& artist) {
-            for (auto w : std::as_const(m_windows)) w->setMediaInfo(title, artist);
+          [this](const QString& title, const QString& album, const QString& artist) {
+            for (auto w : std::as_const(m_windows))
+              w->setMediaInfo(title, album, artist);
           });
 #endif
 }
@@ -151,7 +152,8 @@ void BreakWindows::create(BreakWindowData data) {
     connect(w, &BreakWindow::exitForceBreakRequested, this,
             &BreakWindows::exitForceBreakRequested);
 #ifdef Q_OS_LINUX
-    w->setMediaInfo(m_strawberry->title(), m_strawberry->artist());
+    w->setMediaInfo(m_strawberry->title(), m_strawberry->album(),
+                    m_strawberry->artist());
 #endif
   }
   updateClocks();  // Set the initial clock
