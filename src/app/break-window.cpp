@@ -190,14 +190,27 @@ void BreakWindow::setMediaInfo(const QString& title, const QString& album,
   if (!title.isEmpty()) parts << title;
   if (!album.isEmpty()) parts << album;
   if (!artist.isEmpty()) parts << artist;
-  m_mediaText = parts.join('\n');
-  ui->mediaLabel->setText(m_mediaText);
+  m_mediaInfo = parts.join('\n');
+  rebuildMediaLabel();
+}
+
+void BreakWindow::setMediaTime(const QString& timeText) {
+  m_mediaTime = timeText;
+  rebuildMediaLabel();
+}
+
+void BreakWindow::rebuildMediaLabel() {
+  // Track info first (title/album/artist), then the position / length line.
+  QStringList parts;
+  if (!m_mediaInfo.isEmpty()) parts << m_mediaInfo;
+  if (!m_mediaTime.isEmpty()) parts << m_mediaTime;
+  ui->mediaLabel->setText(parts.join('\n'));
   updateMediaVisibility();
 }
 
 // Media info is only shown on the full screen break, not the flash prompt.
 void BreakWindow::updateMediaVisibility() {
-  ui->mediaLabel->setVisible(m_isFullScreen && !m_mediaText.isEmpty());
+  ui->mediaLabel->setVisible(m_isFullScreen && !m_mediaInfo.isEmpty());
 }
 
 void BreakWindow::showButtons(AbstractBreakWindows::Buttons buttons, bool show) {

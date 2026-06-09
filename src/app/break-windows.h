@@ -57,5 +57,6 @@ class BreakWindows : public AbstractBreakWindows {
 #ifdef Q_OS_LINUX
   LayerShellInterface* layerShell = nullptr;
   StrawberryWatcher* m_strawberry = nullptr;
+  void updateMediaTime();
 #endif
 };

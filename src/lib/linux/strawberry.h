@@ -19,6 +19,10 @@ class StrawberryWatcher : public QObject {
   QString title() const { return m_title; }
   QString album() const { return m_album; }
   QString artist() const { return m_artist; }
+  // Track length, taken from the metadata, in microseconds (0 if unknown).
+  qint64 lengthMicroseconds() const { return m_lengthMicros; }
+  // Current playback position, queried live over D-Bus, in microseconds.
+  qint64 positionMicroseconds() const;
 
  signals:
   void trackInfoChanged(QString title, QString album, QString artist);
@@ -28,6 +32,7 @@ class StrawberryWatcher : public QObject {
   QString m_title;
   QString m_album;
   QString m_artist;
+  qint64 m_lengthMicros = 0;
 
   void fetchAndNotify();
   void updateInfo(const QString& title, const QString& album, const QString& artist);

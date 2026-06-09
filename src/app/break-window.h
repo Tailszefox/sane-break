@@ -38,6 +38,7 @@ class BreakWindow : public QMainWindow {
   void setTime(int remainingTime, QString estimatedEndTime);
   void setClock(QString hourMinite);
   void setMediaInfo(const QString& title, const QString& album, const QString& artist);
+  void setMediaTime(const QString& timeText);
   void showFullScreen();
   void showFlashPrompt();
   void showButtons(AbstractBreakWindows::Buttons buttons, bool show = true);
@@ -62,9 +63,11 @@ class BreakWindow : public QMainWindow {
   bool m_waylandWorkaround = false;
   bool m_supportTransparentInput = true;
   int m_totalSeconds;
-  QString m_mediaText;
+  QString m_mediaInfo;
+  QString m_mediaTime;
   bool m_isFullScreen = false;
 
+  void rebuildMediaLabel();
   void updateMediaVisibility();
   static void colorizeButton(QPushButton* button, QColor color);
 };

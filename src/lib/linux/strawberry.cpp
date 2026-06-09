@@ -30,6 +30,7 @@ StrawberryWatcher::StrawberryWatcher(QObject* parent)
 void StrawberryWatcher::fetchAndNotify() {
   QDBusReply<QDBusVariant> reply = m_iface->call("Get", kPlayerIface, "Metadata");
   if (!reply.isValid()) {
+    m_lengthMicros = 0;
     updateInfo({}, {}, {});
     return;
   }
@@ -38,6 +39,7 @@ void StrawberryWatcher::fetchAndNotify() {
   // iterate it manually as a map rather than using the bulk >> operator.
   const QDBusArgument arg = reply.value().variant().value<QDBusArgument>();
   if (arg.currentType() != QDBusArgument::MapType) {
+    m_lengthMicros = 0;
     updateInfo({}, {}, {});
     return;
   }
@@ -45,6 +47,7 @@ void StrawberryWatcher::fetchAndNotify() {
   QString title;
   QString album;
   QStringList artists;
+  qint64 length = 0;
   arg.beginMap();
   while (!arg.atEnd()) {
     QString key;
@@ -64,11 +67,21 @@ void StrawberryWatcher::fetchAndNotify() {
       } else if (value.canConvert<QDBusArgument>()) {
         value.value<QDBusArgument>() >> artists;
       }
+    } else if (key == "mpris:length") {
+      // mpris:length is the track length in microseconds.
+      length = value.toLongLong();
     }
   }
   arg.endMap();
 
+  m_lengthMicros = length;
   updateInfo(title, album, artists.value(0));
+}
+
+qint64 StrawberryWatcher::positionMicroseconds() const {
+  QDBusReply<QDBusVariant> reply = m_iface->call("Get", kPlayerIface, "Position");
+  if (!reply.isValid()) return 0;
+  return reply.value().variant().toLongLong();
 }
 
 void StrawberryWatcher::updateInfo(const QString& title, const QString& album,

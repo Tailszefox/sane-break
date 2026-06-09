@@ -32,12 +32,23 @@
 #include "lib/macos/workspace.h"
 #endif
 #ifdef Q_OS_LINUX
+#include <QChar>
 #include <QGuiApplication>
 #include <QPluginLoader>
 
 #include "app/layer-shell/interface.h"
 #include "lib/linux/strawberry.h"
 #include "lib/linux/system-check.h"
+
+namespace {
+// Format a duration given in microseconds as "M:SS".
+QString formatMediaTime(qint64 microseconds) {
+  qint64 totalSeconds = microseconds / 1000000;
+  return QString("%1:%2")
+      .arg(totalSeconds / 60)
+      .arg(totalSeconds % 60, 2, 10, QChar('0'));
+}
+}  // namespace
 #endif
 
 BreakWindows::BreakWindows(QObject* parent) : AbstractBreakWindows(parent) {
@@ -63,6 +74,8 @@ BreakWindows::BreakWindows(QObject* parent) : AbstractBreakWindows(parent) {
           [this](const QString& title, const QString& album, const QString& artist) {
             for (auto w : std::as_const(m_windows))
               w->setMediaInfo(title, album, artist);
+            // Refresh the time line too, so a new track's length shows at once.
+            updateMediaTime();
           });
 #endif
 }
@@ -201,7 +214,22 @@ void BreakWindows::updateClocks() {
   for (auto w : std::as_const(m_windows)) {
     w->setClock(hourMinute);
   }
+#ifdef Q_OS_LINUX
+  updateMediaTime();
+#endif
 }
+
+#ifdef Q_OS_LINUX
+void BreakWindows::updateMediaTime() {
+  qint64 lengthMicros = m_strawberry->lengthMicroseconds();
+  QString timeText;
+  if (lengthMicros > 0) {
+    timeText = formatMediaTime(m_strawberry->positionMicroseconds()) + " / " +
+               formatMediaTime(lengthMicros);
+  }
+  for (auto w : std::as_const(m_windows)) w->setMediaTime(timeText);
+}
+#endif
 void BreakWindows::showFullScreen() {
   for (auto w : std::as_const(m_windows)) w->showFullScreen();
 }
