@@ -48,6 +48,13 @@ QString formatMediaTime(qint64 microseconds) {
       .arg(totalSeconds / 60)
       .arg(totalSeconds % 60, 2, 10, QChar('0'));
 }
+
+// Format the track's playlist position as "position / length" (empty if the
+// track is not in a playlist).
+QString formatPlaylistInfo(int position, int length) {
+  if (position <= 0 || length <= 0) return {};
+  return QString("%1 / %2").arg(position).arg(length);
+}
 }  // namespace
 #endif
 
@@ -72,8 +79,12 @@ BreakWindows::BreakWindows(QObject* parent) : AbstractBreakWindows(parent) {
   m_strawberry = new StrawberryWatcher(this);
   connect(m_strawberry, &StrawberryWatcher::trackInfoChanged, this,
           [this](const QString& title, const QString& album, const QString& artist) {
-            for (auto w : std::as_const(m_windows))
+            QString playlistText = formatPlaylistInfo(m_strawberry->playlistPosition(),
+                                                      m_strawberry->playlistLength());
+            for (auto w : std::as_const(m_windows)) {
               w->setMediaInfo(title, album, artist);
+              w->setMediaPlaylist(playlistText);
+            }
             // Refresh the time line too, so a new track's length shows at once.
             updateMediaTime();
           });
@@ -167,6 +178,8 @@ void BreakWindows::create(BreakWindowData data) {
 #ifdef Q_OS_LINUX
     w->setMediaInfo(m_strawberry->title(), m_strawberry->album(),
                     m_strawberry->artist());
+    w->setMediaPlaylist(formatPlaylistInfo(m_strawberry->playlistPosition(),
+                                           m_strawberry->playlistLength()));
 #endif
   }
   updateClocks();  // Set the initial clock

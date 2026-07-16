@@ -199,11 +199,18 @@ void BreakWindow::setMediaTime(const QString& timeText) {
   rebuildMediaLabel();
 }
 
+void BreakWindow::setMediaPlaylist(const QString& playlistText) {
+  m_mediaPlaylist = playlistText;
+  rebuildMediaLabel();
+}
+
 void BreakWindow::rebuildMediaLabel() {
-  // Track info first (title/album/artist), then the position / length line.
+  // Track info first (title/album/artist), then the position / length line,
+  // then the position in the playlist.
   QStringList parts;
   if (!m_mediaInfo.isEmpty()) parts << m_mediaInfo;
   if (!m_mediaTime.isEmpty()) parts << m_mediaTime;
+  if (!m_mediaPlaylist.isEmpty()) parts << m_mediaPlaylist;
   ui->mediaLabel->setText(parts.join('\n'));
   updateMediaVisibility();
 }

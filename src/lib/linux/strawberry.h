@@ -9,6 +9,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
+#include <utility>
 
 class StrawberryWatcher : public QObject {
   Q_OBJECT
@@ -23,6 +24,10 @@ class StrawberryWatcher : public QObject {
   qint64 lengthMicroseconds() const { return m_lengthMicros; }
   // Current playback position, queried live over D-Bus, in microseconds.
   qint64 positionMicroseconds() const;
+  // 1-based position of the track in its playlist and the playlist length,
+  // read from Strawberry's database (-1 if unknown or not in a playlist).
+  int playlistPosition() const { return m_playlistPosition; }
+  int playlistLength() const { return m_playlistLength; }
 
  signals:
   void trackInfoChanged(QString title, QString album, QString artist);
@@ -33,9 +38,13 @@ class StrawberryWatcher : public QObject {
   QString m_album;
   QString m_artist;
   qint64 m_lengthMicros = 0;
+  int m_playlistPosition = -1;
+  int m_playlistLength = -1;
 
   void fetchAndNotify();
-  void updateInfo(const QString& title, const QString& album, const QString& artist);
+  std::pair<int, int> fetchPlaylistInfo(const QString& trackId) const;
+  void updateInfo(const QString& title, const QString& album, const QString& artist,
+                  int playlistPosition, int playlistLength);
 
  private slots:
   void onPropertiesChanged(const QString& interface,

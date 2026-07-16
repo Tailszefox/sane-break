@@ -39,6 +39,7 @@ class BreakWindow : public QMainWindow {
   void setClock(QString hourMinite);
   void setMediaInfo(const QString& title, const QString& album, const QString& artist);
   void setMediaTime(const QString& timeText);
+  void setMediaPlaylist(const QString& playlistText);
   void showFullScreen();
   void showFlashPrompt();
   void showButtons(AbstractBreakWindows::Buttons buttons, bool show = true);
@@ -65,6 +66,7 @@ class BreakWindow : public QMainWindow {
   int m_totalSeconds;
   QString m_mediaInfo;
   QString m_mediaTime;
+  QString m_mediaPlaylist;
   bool m_isFullScreen = false;
 
   void rebuildMediaLabel();
