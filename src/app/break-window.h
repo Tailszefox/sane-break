@@ -13,6 +13,7 @@
 #include <QProgressBar>
 #include <QPropertyAnimation>
 #include <QPushButton>
+#include <QScreen>
 #include <QSequentialAnimationGroup>
 #include <QString>
 #include <QTimer>
@@ -45,6 +46,10 @@ class BreakWindow : public QMainWindow {
   void showButtons(AbstractBreakWindows::Buttons buttons, bool show = true);
 
   void initSize(QScreen* screen);
+  // Raw screen identity captured in initSize. QWidget::screen() is unreliable after
+  // a screen is removed (Qt migrates windows to the primary screen), so we match by
+  // this pointer instead. Never dereference a screen that has been removed.
+  QScreen* screenIdentity() const { return m_screen; }
   QColor color() const;
   void setColor(const QColor& color);
 
@@ -68,6 +73,7 @@ class BreakWindow : public QMainWindow {
   QString m_mediaTime;
   QString m_mediaPlaylist;
   bool m_isFullScreen = false;
+  QScreen* m_screen = nullptr;
 
   void rebuildMediaLabel();
   void updateMediaVisibility();

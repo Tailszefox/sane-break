@@ -27,8 +27,9 @@ PostponeWindow::PostponeWindow(SanePreferences* preferences, BreakDatabase* db,
     : QDialog(parent), ui(new Ui::PostponeUI), preferences(preferences), db(db) {
   ui->setupUi(this);
   setAttribute(Qt::WA_DeleteOnClose);
-  // A whole day: not a policy, just a bound that keeps the spin box sane.
-  ui->postponeMinutes->setMaximum(24 * 60);
+  ui->postponeMinutes->setMaximum(preferences->smallEvery->get() *
+                                  preferences->postponeMaxMinutePercent->get() / 60 /
+                                  100);
   onMinutesUpdate(0);
   connect(ui->postponeMinutes, &QSpinBox::valueChanged, this,
           &PostponeWindow::onMinutesUpdate);
@@ -37,6 +38,8 @@ PostponeWindow::PostponeWindow(SanePreferences* preferences, BreakDatabase* db,
     accept();
   });
 }
+
+void PostponeWindow::setMinutes(int minutes) { ui->postponeMinutes->setValue(minutes); }
 
 void PostponeWindow::onMinutesUpdate(int minutes) {
   ui->postponeButton->setEnabled(minutes > 0);

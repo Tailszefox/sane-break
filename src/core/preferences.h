@@ -96,8 +96,11 @@ class SanePreferences : public QObject {
   Setting<int>* focusBigAfter;
   Setting<int>* focusBigFor;
 
+  Setting<int>* postponeMaxMinutePercent;
   Setting<int>* postponeShrinkNextPercent;
   Setting<int>* postponeExtendBreakPercent;
+
+  Setting<int>* minReasonLength;
 
   Setting<int>* flashFor;
   Setting<int>* confirmAfter;
@@ -132,6 +135,10 @@ class SanePreferences : public QObject {
   Setting<int>* resetAfterPause;
   Setting<int>* resetCycleAfterPause;
   Setting<bool>* pauseOnBattery;
+  // When true (default), an app keeping the screen awake (video player,
+  // presentation) counts as activity and the idle pause won't trigger.
+  // Mapped to IdleMode in app.cpp.
+  Setting<bool>* treatInhibitorAsActivity;
   Setting<QStringList>* programsToMonitor;
   Setting<bool>* pauseOnUnknownMonitor;
   Setting<QStringList>* knownMonitors;

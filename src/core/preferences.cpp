@@ -38,10 +38,16 @@ SanePreferences::SanePreferences(QSettings* settings, QObject* parent)
   focusBigAfter = new Setting<int>(settings, "focus/big-after", 3);
   focusBigFor = new Setting<int>(settings, "focus/big-for", 60);
 
+  // Deliberately high: postponing is not meant to be capped here. The setting is kept
+  // so upstream code that reads it keeps working, and so the ceiling stays adjustable.
+  postponeMaxMinutePercent =
+      new Setting<int>(settings, "postpone/max-minute-ratio", 1000);
   postponeShrinkNextPercent =
       new Setting<int>(settings, "postpone/shrink-next-session-ratio", 100);
   postponeExtendBreakPercent =
       new Setting<int>(settings, "postpone/extend-break-ratio", 100);
+
+  minReasonLength = new Setting<int>(settings, "reason/min-length", 0);
 
   flashFor = new Setting<int>(settings, "break/flash-for", 30);
   confirmAfter = new Setting<int>(settings, "break/confirm-after", 30);
@@ -93,6 +99,8 @@ SanePreferences::SanePreferences(QSettings* settings, QObject* parent)
   resetAfterPause = new Setting<int>(settings, "pause/reset-after", 120);
   resetCycleAfterPause = new Setting<int>(settings, "pause/reset-cycle-after", 300);
   pauseOnBattery = new Setting<bool>(settings, "pause/on-battery", false);
+  treatInhibitorAsActivity =
+      new Setting<bool>(settings, "pause/treat-inhibitor-as-activity", true);
   programsToMonitor =
       new Setting<QStringList>(settings, "pause/programs-to-monitor", QStringList());
   pauseOnUnknownMonitor =

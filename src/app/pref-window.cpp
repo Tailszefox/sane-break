@@ -176,6 +176,7 @@ PreferenceWindow::PreferenceWindow(SanePreferences* preferences, QWidget* parent
             int value = ui->smallBreakEveryBox->value();
             ui->bigBreakAfterBox->setToolTip(
                 tr("Every %n min", "", value * ui->bigBreakAfterBox->value()));
+            ui->postponeSessionRatioLabel->setArgs({value});
             ui->flashTrayForBox->setMaximum(value * 60);
           });
   controllers->add(
@@ -222,8 +223,14 @@ PreferenceWindow::PreferenceWindow(SanePreferences* preferences, QWidget* parent
       PrefGroup::Schedule,
       new PrefController<QSpinBox, int>(ui->bigBreakForBox, preferences->bigFor, 60));
   controllers->add(PrefGroup::Schedule, new PrefController<QSpinBox, int>(
+                                            ui->postponeMaxMinuteBox,
+                                            preferences->postponeMaxMinutePercent));
+  controllers->add(PrefGroup::Schedule, new PrefController<QSpinBox, int>(
                                             ui->postponeExtendBreakBox,
                                             preferences->postponeExtendBreakPercent));
+  controllers->add(PrefGroup::Schedule,
+                   new PrefController<QSpinBox, int>(ui->minReasonLengthBox,
+                                                     preferences->minReasonLength));
 
   // Focus schedule
   controllers->add(PrefGroup::Schedule,
@@ -368,6 +375,9 @@ PreferenceWindow::PreferenceWindow(SanePreferences* preferences, QWidget* parent
   controllers->add(PrefGroup::Pause,
                    new PrefController<QSpinBox, int>(ui->pauseOnIdleBox,
                                                      preferences->pauseOnIdleFor, 60));
+  controllers->add(PrefGroup::Pause, new PrefController<QCheckBox, bool>(
+                                         ui->treatInhibitorAsActivityCheck,
+                                         preferences->treatInhibitorAsActivity));
   connect(controllers->add(PrefGroup::Pause,
                            new PrefController<QSpinBox, int>(
                                ui->resetBreakBox, preferences->resetAfterPause, 60)),
