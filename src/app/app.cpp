@@ -60,8 +60,10 @@ SaneBreakApp::SaneBreakApp(const AppDependencies& deps, QObject* parent)
           &SaneBreakApp::smallBreakInstead);
   connect(tray, &StatusTrayWindow::postponeRequested, this,
           [this]() { openPostponeWindow(std::nullopt); });
+  // Presets apply straight away: opening the dialog pre-filled would leave the
+  // shortcut needing as many clicks as "Custom…" does.
   connect(tray, &StatusTrayWindow::postponePresetRequested, this,
-          [this](int minutes) { openPostponeWindow(minutes); });
+          [this](int minutes) { postpone(minutes * 60); });
   connect(tray, &StatusTrayWindow::meetingRequested, this,
           [this]() { openMeetingWindow(std::nullopt); });
   connect(tray, &StatusTrayWindow::meetingPresetRequested, this,
