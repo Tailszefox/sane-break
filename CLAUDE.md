@@ -80,6 +80,28 @@ User-initiated commands travel as `MenuAction` variants (defined in the `Action`
 
 `AbstractApp` (`src/core/app.h`) is the testable core. `SaneBreakApp` (`src/app/app.h`) extends it with actual Qt windows and is not tested directly. Dependencies (timers, idle detection, break windows, meeting prompt, DB) are injected via `AppDependencies`.
 
+## Fork divergence from upstream
+
+This is a fork of `AllanChain/sane-break` (`upstream` remote). Upstream allows postponing a break **once** per work session, capped at a fraction of the session; this fork allows postponing **any number of times, by any duration**. Upstream disagrees with this direction (see upstream issue #158), so the divergence is permanent — expect it to conflict on every catch-up merge.
+
+Deliberate differences to preserve when merging upstream:
+
+| File | Difference |
+|---|---|
+| `src/core/app.cpp` | `AbstractApp::postpone()` guards only focus mode; upstream also returns early when already postponing |
+| `src/core/app-data.cpp` | `postpone()` accumulates `plannedSecondsToPostpone`, `earlyBreak()` accumulates `actualSecondsToNextBreakWhenBreak` (both overwrite upstream); `completeBreak()` clamps `nextSessionAdjustedSeconds` at 0 |
+| `src/core/app-states.cpp` | `AppStateNormal::onIdleStart`/`onPauseRequest` no longer bail out while postponing; `AppStatePaused::exit()` calls `resetPostpone()` in the refill branch |
+| `src/app/app.cpp` | No "already postponed once" dialog; tray postpone presets call `postpone()` directly instead of opening the pre-filled dialog |
+| `src/app/tray.cpp` | Postpone submenu stays visible while postponing; `buildPostponeMenu()` caps the preset ladder with `std::min(maxMinutes, smallEveryMinutes)` |
+| `src/app/postpone-window.ui` | Warning label says the break can be postponed again |
+| `src/app/break-windows.cpp` | `createOnScreen()` seeds the Strawberry media labels (fork-only media display feature) |
+
+`postponeMaxMinutePercent` (default 1000, UI max raised to 1000) is kept **only** so upstream code that reads it keeps compiling — it is not meant to constrain postponing. Deleting it breaks `buildPostponeMenu()` on the next merge.
+
+When resolving a conflict in these areas: take upstream's structure, then re-remove the `isPostponing` gate and re-apply the preset cap. Note that the accumulating `earlyBreak()` is load-bearing — postpone credit is `planned − actual`, and a postpone session can now be cut short by an early break more than once.
+
+Postpone behavior is covered in `test/test-app.cpp`: `postpone_multiple_times`, `postpone_after_early_break`, `postpone_longer_than_work_session`, `pause_during_postpone`, `long_pause_during_postpone_clears_postpone`. Tray wiring has no coverage — tests link `sane-core` only, so the tray lives outside their reach and needs a manual click.
+
 ### Platform-specific code
 
 Each platform provides concrete implementations under `src/idle/linux/`, `src/idle/macos-idle.h`, `src/lib/linux/`, `src/lib/macos/`, `src/lib/windows/`, etc. Linux additionally has:
