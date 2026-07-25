@@ -479,6 +479,22 @@ class TestApp : public QObject {
     QCOMPARE(app.trayData.secondsToNextBreak,
              deps.preferences->smallEvery->get() - 70);
   }
+  // Postponing for longer than a whole work session shortens the next session to
+  // nothing rather than scheduling a break in the past
+  void postpone_longer_than_work_session() {
+    NiceMock<DummyApp> app(deps);
+    app.start();
+
+    int smallEvery = deps.preferences->smallEvery->get();
+    app.advance(app.trayData.secondsToNextBreak);
+    QVERIFY(app.trayData.isBreaking);
+    app.postpone(smallEvery + 600);
+    QCOMPARE(app.trayData.secondsToNextBreak, smallEvery + 600);
+
+    app.advance(app.trayData.secondsToNextBreak);
+    app.advanceToBreakEnd();
+    QCOMPARE(app.trayData.secondsToNextBreak, 0);
+  }
   // We allow postponing across different work sessions
   void postpone_again_after_break() {
     NiceMock<DummyApp> app(deps);
