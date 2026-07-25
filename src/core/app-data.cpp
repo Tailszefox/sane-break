@@ -59,7 +59,7 @@ void BreakScheduleState::refillSecondsToNextBreak(const BreakConfig& config) {
 }
 void BreakScheduleState::postpone(int secs) {
   m_secondsToNextBreak += secs;
-  m_postponeData.plannedSecondsToPostpone = secs;
+  m_postponeData.plannedSecondsToPostpone += secs;
   notifyChanged();
 }
 bool BreakScheduleState::isPostponing() const { return m_postponeData.isPostponing(); }
@@ -72,7 +72,9 @@ void BreakScheduleState::resetPostpone(bool notify) {
 }
 void BreakScheduleState::earlyBreak() {
   if (m_postponeData.isPostponing()) {
-    m_postponeData.actualSecondsToNextBreakWhenBreak = m_secondsToNextBreak;
+    // Accumulates: the same postpone session may be cut short several times if the
+    // user postpones again and then takes another early break.
+    m_postponeData.actualSecondsToNextBreakWhenBreak += m_secondsToNextBreak;
   }
   m_secondsToNextBreak = 0;
   notifyChanged();
@@ -374,10 +376,12 @@ BreakCompletion AppData::completeBreak() {
   // Must come after focus clear: if focus just ended, effectiveSmallEvery()
   // returns the normal interval instead of the focus interval.
   completion.nextSessionBaseSeconds = currentBreakConfig().smallEvery;
-  completion.nextSessionAdjustedSeconds =
-      completion.nextSessionBaseSeconds -
-      m_schedule.secondsPostponed() * preferences->postponeShrinkNextPercent->get() /
-          100;
+  // Repeated postpones can add up to more than a whole work session, so clamp to 0
+  // instead of scheduling a break in the past.
+  completion.nextSessionAdjustedSeconds = std::max(
+      0, completion.nextSessionBaseSeconds -
+             m_schedule.secondsPostponed() *
+                 preferences->postponeShrinkNextPercent->get() / 100);
   m_schedule.setSecondsToNextBreak(completion.nextSessionAdjustedSeconds, false);
   m_schedule.resetPostpone(false);
   emit changed();

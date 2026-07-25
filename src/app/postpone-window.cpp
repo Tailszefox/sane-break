@@ -16,6 +16,7 @@
 #include <QTimeEdit>
 #include <QTimer>
 #include <Qt>
+#include <algorithm>
 
 #include "core/db.h"
 #include "core/preferences.h"
@@ -26,9 +27,8 @@ PostponeWindow::PostponeWindow(SanePreferences* preferences, BreakDatabase* db,
     : QDialog(parent), ui(new Ui::PostponeUI), preferences(preferences), db(db) {
   ui->setupUi(this);
   setAttribute(Qt::WA_DeleteOnClose);
-  ui->postponeMinutes->setMaximum(preferences->smallEvery->get() *
-                                  preferences->postponeMaxMinutePercent->get() / 60 /
-                                  100);
+  // A whole day: not a policy, just a bound that keeps the spin box sane.
+  ui->postponeMinutes->setMaximum(24 * 60);
   onMinutesUpdate(0);
   connect(ui->postponeMinutes, &QSpinBox::valueChanged, this,
           &PostponeWindow::onMinutesUpdate);
@@ -41,7 +41,11 @@ PostponeWindow::PostponeWindow(SanePreferences* preferences, BreakDatabase* db,
 void PostponeWindow::onMinutesUpdate(int minutes) {
   ui->postponeButton->setEnabled(minutes > 0);
   ui->totalMinutesLabel->setArgs({minutes});
-  int shrinkNextMinutes = minutes * preferences->postponeShrinkNextPercent->get() / 100;
+  // The next work session cannot shrink past zero, so do not promise more than that
+  // for postponements longer than a work session.
+  int shrinkNextMinutes =
+      std::min(minutes * preferences->postponeShrinkNextPercent->get() / 100,
+               preferences->smallEvery->get() / 60);
   ui->nextSessionLabel->setArgs({shrinkNextMinutes});
   int breakForReference = preferences->bigBreakEnabled->get()
                               ? preferences->bigFor->get()

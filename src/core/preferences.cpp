@@ -38,8 +38,6 @@ SanePreferences::SanePreferences(QSettings* settings, QObject* parent)
   focusBigAfter = new Setting<int>(settings, "focus/big-after", 3);
   focusBigFor = new Setting<int>(settings, "focus/big-for", 60);
 
-  postponeMaxMinutePercent =
-      new Setting<int>(settings, "postpone/max-minute-ratio", 50);
   postponeShrinkNextPercent =
       new Setting<int>(settings, "postpone/shrink-next-session-ratio", 100);
   postponeExtendBreakPercent =

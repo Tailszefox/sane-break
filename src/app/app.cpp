@@ -148,16 +148,6 @@ void SaneBreakApp::openPostponeWindow() {
     msgBox.exec();
     return;
   }
-  if (data->schedule().isPostponing()) {
-    QMessageBox msgBox;
-    msgBox.setText(tr("You have already postponed this break once."));
-    msgBox.setInformativeText(tr("No further postpones are allowed."));
-    msgBox.setIcon(QMessageBox::Icon::Warning);
-    msgBox.addButton(QMessageBox::Ok)->setText(tr("OK"));
-    msgBox.setDefaultButton(QMessageBox::Cancel);
-    msgBox.exec();
-    return;
-  }
   if (!postponeWindow) {
     postponeWindow = new PostponeWindow(preferences, db);
     connect(postponeWindow, &PostponeWindow::postponeRequested, this,

@@ -161,14 +161,10 @@ void AppStateNormal::tick(AppContext* app) {
   app->checkBreakReadiness();
 }
 void AppStateNormal::onIdleStart(AppContext* app) {
-  // When in postpone mode, disable pausing
-  if (app->data->schedule().isPostponing()) return;
   app->data->pause().addReasons(PauseReason::Idle);
   app->transitionTo(std::make_unique<AppStatePaused>());
 }
 void AppStateNormal::onPauseRequest(AppContext* app, PauseReasons) {
-  // When in postpone mode, disable pausing
-  if (app->data->schedule().isPostponing()) return;
   app->transitionTo(std::make_unique<AppStatePaused>());
 }
 void AppStateNormal::onMenuAction(AppContext* app, MenuAction action) {
@@ -214,6 +210,10 @@ void AppStatePaused::exit(AppContext* app) {
   if (app->data->pause().secondsPaused() > secondsToNextBreakEnd ||
       app->data->pause().secondsPaused() > app->preferences->resetAfterPause->get()) {
     app->data->schedule().refillSecondsToNextBreak(config);
+    // The pause counts as the rest the postponed break would have provided, so drop
+    // the postpone penalties instead of also extending the next break and shrinking
+    // the session that follows it.
+    app->data->schedule().resetPostpone();
   }
   // If user was paused longer than resetCycleAfterPause setting, reset the entire break
   // cycle

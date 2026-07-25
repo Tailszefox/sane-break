@@ -769,43 +769,6 @@ QPushButton[flat=&quot;true&quot;]:checked {
              </widget>
             </item>
             <item>
-             <widget class="DynamicLabel" name="postponeSessionRatioLabel">
-              <property name="text">
-               <string>Maximum postpone time as a percentage of your work session (&lt;b&gt;%1&lt;/b&gt; min)</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <layout class="QGridLayout" name="gridLayout_3">
-              <property name="verticalSpacing">
-               <number>12</number>
-              </property>
-              <item row="0" column="0">
-               <widget class="QSlider" name="postponeMaxMinuteSlider">
-                <property name="minimum">
-                 <number>1</number>
-                </property>
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="QSpinBox" name="postponeMaxMinuteBox">
-                <property name="suffix">
-                 <string notr="true">%</string>
-                </property>
-                <property name="value">
-                 <number>1</number>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
              <widget class="QLabel" name="label_81">
               <property name="text">
                <string>Postponing breaks adds extra time to your next long break, proportional to how much time you postponed. You can adjust the multiplier for how much extra time is added.</string>
@@ -2589,38 +2552,6 @@ v%1
     <hint type="destinationlabel">
      <x>191</x>
      <y>-328</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>postponeMaxMinuteSlider</sender>
-   <signal>valueChanged(int)</signal>
-   <receiver>postponeMaxMinuteBox</receiver>
-   <slot>setValue(int)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>615</x>
-     <y>270</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>747</x>
-     <y>282</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>postponeMaxMinuteBox</sender>
-   <signal>valueChanged(int)</signal>
-   <receiver>postponeMaxMinuteSlider</receiver>
-   <slot>setValue(int)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>725</x>
-     <y>267</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>579</x>
-     <y>274</y>
     </hint>
    </hints>
   </connection>

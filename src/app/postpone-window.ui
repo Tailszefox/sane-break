@@ -184,7 +184,7 @@
      <item>
       <widget class="QLabel" name="label_22">
        <property name="text">
-        <string>You won't be able to postpone this break again. It will start automatically at the scheduled time.</string>
+        <string>The break will start automatically at the new scheduled time. You can postpone it again if you need to.</string>
        </property>
        <property name="wordWrap">
         <bool>true</bool>

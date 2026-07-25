@@ -376,15 +376,50 @@ class TestApp : public QObject {
     QCOMPARE(app.trayData.secondsToNextBreak,
              deps.preferences->smallEvery->get() - 100);
   }
-  // We disallow postponing twice in the same work session
-  void cannot_postpone_twice() {
+  // Postponing several times in the same work session stacks up
+  void postpone_multiple_times() {
     NiceMock<DummyApp> app(deps);
     app.start();
 
     int secondsToNextBreak = app.trayData.secondsToNextBreak;
     app.postpone(100);
     app.postpone(100);
-    QCOMPARE(app.trayData.secondsToNextBreak, secondsToNextBreak + 100);
+    app.postpone(50);
+    QCOMPARE(app.trayData.secondsToNextBreak, secondsToNextBreak + 250);
+    QVERIFY(app.trayData.isPostponing);
+
+    app.advance(app.trayData.secondsToNextBreak);
+    app.advanceToBreakEnd();
+    // Next work session is shortened by the total postponed time
+    QCOMPARE(app.trayData.secondsToNextBreak,
+             deps.preferences->smallEvery->get() - 250);
+  }
+  // Repeated early breaks only credit the time actually postponed
+  void postpone_after_early_break() {
+    NiceMock<DummyApp> app(deps);
+    app.start();
+
+    // Let the break arrive, then postpone it from within the break
+    app.advance(app.trayData.secondsToNextBreak);
+    QVERIFY(app.trayData.isBreaking);
+    app.postpone(100);
+    QCOMPARE(app.trayData.secondsToNextBreak, 100);
+
+    // Only 40 of the 100 postponed seconds are used before breaking anyway
+    app.advance(40);
+    app.breakNow();
+    QVERIFY(app.trayData.isBreaking);
+
+    // Postpone again, and this time only use 30 of the 100 seconds
+    app.postpone(100);
+    QCOMPARE(app.trayData.secondsToNextBreak, 100);
+    app.advance(30);
+    app.breakNow();
+    app.advanceToBreakEnd();
+
+    // Next session is shortened by the 40 + 30 seconds actually postponed
+    QCOMPARE(app.trayData.secondsToNextBreak,
+             deps.preferences->smallEvery->get() - 70);
   }
   // We allow postponing across different work sessions
   void postpone_again_after_break() {
@@ -1054,11 +1089,8 @@ class TestApp : public QObject {
 
     QVERIFY(!query.next());
   }
-  /* We disallow pausing duing postponing because:
-   * 1. this will almost not happen, so we can simplify things.
-   * 2. if this happens, postponing should mean continuous working.
-   */
-  void no_pause_during_break() {
+  // Idling during a postponement pauses the countdown like in any other work session
+  void pause_during_postpone() {
     NiceMock<DummyApp> app(deps);
     app.start();
 
@@ -1066,11 +1098,41 @@ class TestApp : public QObject {
     app.postpone(1000);
 
     deps.idleTimer->setIdle(true);
+    QCOMPARE(app.trayData.pauseReasons, PauseReason::Idle);
     app.advance(10);
     deps.idleTimer->setIdle(false);
     app.advance(1);
 
-    QCOMPARE(app.trayData.secondsToNextBreak, smallEvery + 989);
+    // The idle seconds did not count down, and the postponement is preserved
+    QCOMPARE(app.trayData.secondsToNextBreak, smallEvery + 999);
+    QVERIFY(app.trayData.isPostponing);
+  }
+  /* A pause long enough to refill the break timer counts as the rest the postponed
+   * break would have given, so the postpone penalties are dropped.
+   */
+  void long_pause_during_postpone_clears_postpone() {
+    NiceMock<DummyApp> app(deps);
+    app.start();
+
+    int smallEvery = deps.preferences->smallEvery->get();
+    // Postpone the break from within the break, so the countdown is exactly 100
+    app.advance(app.trayData.secondsToNextBreak);
+    QVERIFY(app.trayData.isBreaking);
+    app.postpone(100);
+    QCOMPARE(app.trayData.secondsToNextBreak, 100);
+
+    deps.idleTimer->setIdle(true);
+    app.advance(deps.preferences->resetAfterPause->get() + 1);
+    deps.idleTimer->setIdle(false);
+
+    // Break timer is refilled and the postponement no longer applies
+    QCOMPARE(app.trayData.secondsToNextBreak, smallEvery);
+    QVERIFY(!app.trayData.isPostponing);
+
+    app.advance(app.trayData.secondsToNextBreak);
+    app.advanceToBreakEnd();
+    // Next work session is not shortened
+    QCOMPARE(app.trayData.secondsToNextBreak, smallEvery);
   }
   // End meeting early with immediate break
   void meeting_end_early_break_now() {

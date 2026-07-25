@@ -171,7 +171,7 @@ void AbstractApp::extendMeeting(int seconds) {
 
 void AbstractApp::postpone(int seconds) {
   // This is defensive. This should already be handled by App.
-  if (data->schedule().isPostponing() || data->focus().isActive()) return;
+  if (data->focus().isActive()) return;
   db->logEvent("postpone", {{"seconds", seconds}});
   // Exit current break if we are postponing breaks
   transitionTo(std::make_unique<AppStateNormal>());
