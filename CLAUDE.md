@@ -25,7 +25,15 @@ cmake -DTESTING=ON ..
 cmake --build . --parallel --target check
 
 # Headless (required on systems without a display)
-QT_QPA_PLATFORM=offscreen ctest --verbose --output-on-failure
+QT_QPA_PLATFORM=offscreen cmake --build . --target check
+```
+
+`enable_testing()` lives in `test/CMakeLists.txt`, not the root, so the build root has
+no test registry — `ctest` from `build/` reports "No tests were found!!!". Either use the
+`check` target above, or run `ctest` from `build/test`:
+
+```bash
+cd build/test && QT_QPA_PLATFORM=offscreen ctest --verbose --output-on-failure
 ```
 
 Screenshot harness (not part of `check`):
