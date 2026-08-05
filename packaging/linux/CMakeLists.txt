@@ -51,5 +51,37 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND SANE_MAKE_DEB)
   set(CPACK_DEBIAN_PACKAGE_RECOMMENDS
       "qt6-wayland(>=6.4), layer-shell-qt(>=6.2), libxss1(>=1.2.3)"
   )
+  # Fork-only: the package version follows upstream's project version, so a local change
+  # rebuilt at the same version looks "already installed" to apt. Append the git commit,
+  # prefixed by its commit date so versions keep increasing.
+  set(SANE_DEB_VERSION "${PROJECT_VERSION}")
+  find_package(Git QUIET)
+  if(GIT_FOUND)
+    execute_process(
+      COMMAND "${GIT_EXECUTABLE}" log -1 --date=format:%Y%m%d%H%M%S --format=%cd.%h
+      WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+      OUTPUT_VARIABLE SANE_GIT_STAMP
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      RESULT_VARIABLE SANE_GIT_RESULT
+      ERROR_QUIET
+    )
+    if(SANE_GIT_RESULT EQUAL 0 AND SANE_GIT_STAMP)
+      set(SANE_DEB_VERSION "${SANE_DEB_VERSION}+git${SANE_GIT_STAMP}")
+      # Uncommitted changes reuse the same commit, so stamp the configure time to keep
+      # successive dirty builds sorting above one another.
+      execute_process(
+        COMMAND "${GIT_EXECUTABLE}" status --porcelain --untracked-files=no
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        OUTPUT_VARIABLE SANE_GIT_DIRTY
+        OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET
+      )
+      if(SANE_GIT_DIRTY)
+        string(TIMESTAMP SANE_BUILD_STAMP "%Y%m%d%H%M%S")
+        set(SANE_DEB_VERSION "${SANE_DEB_VERSION}.dirty${SANE_BUILD_STAMP}")
+      endif()
+    endif()
+  endif()
+  set(CPACK_DEBIAN_PACKAGE_VERSION "${SANE_DEB_VERSION}")
+  message(STATUS "Debian package version: ${CPACK_DEBIAN_PACKAGE_VERSION}")
   include(CPack)
 endif()

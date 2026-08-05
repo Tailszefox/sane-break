@@ -105,6 +105,7 @@ Deliberate differences to preserve when merging upstream:
 | `src/app/postpone-window.cpp` | Hides the "Shorten your next work session" line when `postponeShrinkNextPercent` is 0 |
 | `src/app/postpone-window.ui` | Warning label says the break can be postponed again |
 | `src/app/break-windows.cpp` | `createOnScreen()` seeds the Strawberry media labels (fork-only media display feature) |
+| `packaging/linux/CMakeLists.txt` | Sets `CPACK_DEBIAN_PACKAGE_VERSION` to `<version>+git<commit-date>.<hash>[.dirty<configure-time>]` so rebuilds at an unchanged upstream version still look newer to apt |
 
 `postponeMaxMinutePercent` (default 1000, UI max raised to 1000) is kept **only** so upstream code that reads it keeps compiling — it is not meant to constrain postponing. Deleting it breaks `buildPostponeMenu()` on the next merge.
 
