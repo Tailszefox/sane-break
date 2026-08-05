@@ -297,6 +297,8 @@ class TestApp : public QObject {
   void long_post_break_idle_undoes_postpone_shrink() {
     QFETCH(bool, autoCloseWindow);
     deps.preferences->autoCloseWindowAfterSmallBreak->set(autoCloseWindow);
+    // The shrink is disabled by default in this fork; turn it on to exercise the undo
+    deps.preferences->postponeShrinkNextPercent->set(100);
     NiceMock<DummyApp> app(deps);
     app.start();
 
@@ -320,6 +322,8 @@ class TestApp : public QObject {
   void short_post_break_idle_keeps_postpone_shrink() {
     QFETCH(bool, autoCloseWindow);
     deps.preferences->autoCloseWindowAfterSmallBreak->set(autoCloseWindow);
+    // The shrink is disabled by default in this fork; turn it on to exercise it
+    deps.preferences->postponeShrinkNextPercent->set(100);
     NiceMock<DummyApp> app(deps);
     app.start();
 
@@ -479,7 +483,36 @@ class TestApp : public QObject {
 
     app.advance(app.trayData.secondsToNextBreak);
     app.advanceToBreakEnd();
-    // Next work session is shortened
+    // The whole schedule moves with the postponement: the next work session keeps its
+    // full length instead of paying the postponed time back
+    QCOMPARE(app.trayData.secondsToNextBreak, deps.preferences->smallEvery->get());
+  }
+  // Postponing moves every following break too, so the sessions after the postponed
+  // break run their full length
+  void postpone_does_not_shrink_next_sessions() {
+    NiceMock<DummyApp> app(deps);
+    app.start();
+
+    int smallEvery = deps.preferences->smallEvery->get();
+    app.postpone(100);
+    QCOMPARE(app.trayData.secondsToNextBreak, smallEvery + 100);
+
+    // The postponed break, then two more sessions after it
+    for (int i = 0; i < 3; i++) {
+      app.advance(app.trayData.secondsToNextBreak);
+      app.advanceToBreakEnd();
+      QCOMPARE(app.trayData.secondsToNextBreak, smallEvery);
+    }
+  }
+  // Turning the shrink back on pays the postponed time back out of the next session
+  void postpone_shrinks_next_session_when_enabled() {
+    deps.preferences->postponeShrinkNextPercent->set(100);
+    NiceMock<DummyApp> app(deps);
+    app.start();
+
+    app.postpone(100);
+    app.advance(app.trayData.secondsToNextBreak);
+    app.advanceToBreakEnd();
     QCOMPARE(app.trayData.secondsToNextBreak,
              deps.preferences->smallEvery->get() - 100);
   }
@@ -497,12 +530,13 @@ class TestApp : public QObject {
 
     app.advance(app.trayData.secondsToNextBreak);
     app.advanceToBreakEnd();
-    // Next work session is shortened by the total postponed time
-    QCOMPARE(app.trayData.secondsToNextBreak,
-             deps.preferences->smallEvery->get() - 250);
+    // Every postponement shifts the schedule, so the next session is still full length
+    QCOMPARE(app.trayData.secondsToNextBreak, deps.preferences->smallEvery->get());
   }
   // Repeated early breaks only credit the time actually postponed
   void postpone_after_early_break() {
+    // The shrink is the only place the accumulated credit is observable, so turn it on
+    deps.preferences->postponeShrinkNextPercent->set(100);
     NiceMock<DummyApp> app(deps);
     app.start();
 
@@ -525,12 +559,13 @@ class TestApp : public QObject {
     app.advanceToBreakEnd();
 
     // Next session is shortened by the 40 + 30 seconds actually postponed
-    QCOMPARE(app.trayData.secondsToNextBreak,
-             deps.preferences->smallEvery->get() - 70);
+    QCOMPARE(app.trayData.secondsToNextBreak, deps.preferences->smallEvery->get() - 70);
   }
   // Postponing for longer than a whole work session shortens the next session to
   // nothing rather than scheduling a break in the past
   void postpone_longer_than_work_session() {
+    // Only the shrink can push the next session below zero, so turn it on
+    deps.preferences->postponeShrinkNextPercent->set(100);
     NiceMock<DummyApp> app(deps);
     app.start();
 
@@ -554,9 +589,9 @@ class TestApp : public QObject {
 
     app.advance(app.trayData.secondsToNextBreak);
     app.advanceToBreakEnd();
-    QCOMPARE(app.trayData.secondsToNextBreak, secondsToNextBreak - 100);
+    QCOMPARE(app.trayData.secondsToNextBreak, secondsToNextBreak);
     app.postpone(300);
-    QCOMPARE(app.trayData.secondsToNextBreak, secondsToNextBreak + 200);
+    QCOMPARE(app.trayData.secondsToNextBreak, secondsToNextBreak + 300);
   }
   void early_break_clears_effective_postpone() {
     NiceMock<DummyApp> app(deps);
@@ -1129,6 +1164,9 @@ class TestApp : public QObject {
     QVERIFY2(trackedSeconds < 5400, "tracked time should not include the slept hour");
   }
   void sleep_during_post_break_idle_counts_as_inactivity() {
+    // The shrink is disabled by default in this fork; turn it on so the refilled
+    // countdown is actually distinguishable from a plain postponed session
+    deps.preferences->postponeShrinkNextPercent->set(100);
     NiceMock<DummyApp> app(deps);
     app.start();
 
@@ -1234,6 +1272,9 @@ class TestApp : public QObject {
    * break would have given, so the postpone penalties are dropped.
    */
   void long_pause_during_postpone_clears_postpone() {
+    // The shrink is disabled by default in this fork; turn it on so "the postponement
+    // no longer applies" is an observable claim about the session after the break
+    deps.preferences->postponeShrinkNextPercent->set(100);
     NiceMock<DummyApp> app(deps);
     app.start();
 

@@ -42,8 +42,11 @@ SanePreferences::SanePreferences(QSettings* settings, QObject* parent)
   // so upstream code that reads it keeps working, and so the ceiling stays adjustable.
   postponeMaxMinutePercent =
       new Setting<int>(settings, "postpone/max-minute-ratio", 1000);
+  // Default 0: postponing shifts the whole schedule forward instead of stealing the
+  // postponed time back from the session that follows the break. The setting is kept
+  // so upstream code that reads it keeps working, and so the shrink stays available.
   postponeShrinkNextPercent =
-      new Setting<int>(settings, "postpone/shrink-next-session-ratio", 100);
+      new Setting<int>(settings, "postpone/shrink-next-session-ratio", 0);
   postponeExtendBreakPercent =
       new Setting<int>(settings, "postpone/extend-break-ratio", 100);
 

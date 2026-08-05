@@ -101,14 +101,18 @@ Deliberate differences to preserve when merging upstream:
 | `src/core/app-states.cpp` | `AppStateNormal::onIdleStart`/`onPauseRequest` no longer bail out while postponing; `AppStatePaused::exit()` calls `resetPostpone()` in the refill branch |
 | `src/app/app.cpp` | No "already postponed once" dialog; tray postpone presets call `postpone()` directly instead of opening the pre-filled dialog |
 | `src/app/tray.cpp` | Postpone submenu stays visible while postponing; `buildPostponeMenu()` caps the preset ladder with `std::min(maxMinutes, smallEveryMinutes)` |
+| `src/core/preferences.cpp` | `postponeShrinkNextPercent` defaults to 0 (upstream: 100), so a postponement shifts the whole schedule instead of being paid back out of the next session |
+| `src/app/postpone-window.cpp` | Hides the "Shorten your next work session" line when `postponeShrinkNextPercent` is 0 |
 | `src/app/postpone-window.ui` | Warning label says the break can be postponed again |
 | `src/app/break-windows.cpp` | `createOnScreen()` seeds the Strawberry media labels (fork-only media display feature) |
 
 `postponeMaxMinutePercent` (default 1000, UI max raised to 1000) is kept **only** so upstream code that reads it keeps compiling — it is not meant to constrain postponing. Deleting it breaks `buildPostponeMenu()` on the next merge.
 
+`postponeShrinkNextPercent` is likewise kept, defaulting to 0. All the shrink machinery upstream built around it (`nextSessionBaseSeconds` vs `nextSessionAdjustedSeconds`, `finalizePendingPostBreak()`'s `undoPostponeShrink`, the 0 clamp) still works and is still tested — it is just inert at the default, so the code stays merge-compatible. The setting has no UI; it is changed through QSettings (`postpone/shrink-next-session-ratio`). Note that `postponeExtendBreakPercent` still defaults to 100: postponing lengthens the break itself, it just no longer shortens the sessions that follow.
+
 When resolving a conflict in these areas: take upstream's structure, then re-remove the `isPostponing` gate and re-apply the preset cap. Note that the accumulating `earlyBreak()` is load-bearing — postpone credit is `planned − actual`, and a postpone session can now be cut short by an early break more than once.
 
-Postpone behavior is covered in `test/test-app.cpp`: `postpone_multiple_times`, `postpone_after_early_break`, `postpone_longer_than_work_session`, `pause_during_postpone`, `long_pause_during_postpone_clears_postpone`. Tray wiring has no coverage — tests link `sane-core` only, so the tray lives outside their reach and needs a manual click.
+Postpone behavior is covered in `test/test-app.cpp`: `postpone_multiple_times`, `postpone_after_early_break`, `postpone_longer_than_work_session`, `pause_during_postpone`, `long_pause_during_postpone_clears_postpone`, `postpone_does_not_shrink_next_sessions`, `postpone_shrinks_next_session_when_enabled`. Tests that need the shrink to observe what they assert set `postponeShrinkNextPercent` to 100 themselves; `init()` rebuilds the deps per test, so that never leaks. Tray wiring has no coverage — tests link `sane-core` only, so the tray lives outside their reach and needs a manual click.
 
 ### Platform-specific code
 

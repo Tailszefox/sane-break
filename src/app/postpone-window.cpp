@@ -30,6 +30,11 @@ PostponeWindow::PostponeWindow(SanePreferences* preferences, BreakDatabase* db,
   ui->postponeMinutes->setMaximum(preferences->smallEvery->get() *
                                   preferences->postponeMaxMinutePercent->get() / 60 /
                                   100);
+  // The shrink is off by default here: postponing moves the whole schedule forward, so
+  // the line promising a shorter next session only makes sense if it is turned back on.
+  bool shrinksNextSession = preferences->postponeShrinkNextPercent->get() > 0;
+  ui->label_8->setVisible(shrinksNextSession);
+  ui->nextSessionLabel->setVisible(shrinksNextSession);
   onMinutesUpdate(0);
   connect(ui->postponeMinutes, &QSpinBox::valueChanged, this,
           &PostponeWindow::onMinutesUpdate);
