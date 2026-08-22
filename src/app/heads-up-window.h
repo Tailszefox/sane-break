@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include <QAbstractAnimation>
 #include <QColor>
 #include <QPropertyAnimation>
 #include <QScreen>
@@ -13,7 +12,6 @@
 class HeadsUpWindow : public QWidget {
   Q_OBJECT
   Q_PROPERTY(qreal progress MEMBER m_progress NOTIFY progressChanged)
-  Q_PROPERTY(QColor flashColor MEMBER m_flashColor NOTIFY flashColorChanged)
 
  public:
   HeadsUpWindow(int totalSeconds, QColor bgColor, QColor highlightColor,
@@ -26,7 +24,6 @@ class HeadsUpWindow : public QWidget {
  signals:
   void clicked();
   void progressChanged();
-  void flashColorChanged();
 
  protected:
   void paintEvent(QPaintEvent*) override;
@@ -35,11 +32,9 @@ class HeadsUpWindow : public QWidget {
  private:
   int m_totalSeconds;
   qreal m_progress = 1.0;
-  QColor m_bgColor;
-  QColor m_flashColor;
+  QColor m_fillColor;
   QColor m_textColor;
   QPropertyAnimation* m_progressAnim;
-  QAbstractAnimation* m_flashAnim;
   QScreen* m_screen = nullptr;
 
   static const int PILL_WIDTH = 280;
