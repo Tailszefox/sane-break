@@ -11,9 +11,12 @@
 #include <QObject>
 #include <QSettings>
 #include <QString>
+#include <QVariant>
 #include <QtContainerFwd>
 #include <functional>
+#include <optional>
 #include <type_traits>
+#include <utility>
 
 class SettingWithSignal : public QObject {
   Q_OBJECT
@@ -26,20 +29,26 @@ class SettingWithSignal : public QObject {
 template <typename T>
 class Setting : public SettingWithSignal {
  public:
+  // Returns std::nullopt when `value` is valid, otherwise a message explaining why.
+  using Validator = std::function<std::optional<QString>(const T&)>;
+
   Setting(QSettings* settings, const QString& key, const T& defaultValue,
-          QObject* parent = nullptr)
+          Validator validator = {}, QObject* parent = nullptr)
       : SettingWithSignal(parent),
         m_settings(settings),
         m_key(key),
         m_defaultValue(defaultValue),
-        m_defaultIsFunction(false) {}
+        m_defaultIsFunction(false),
+        m_validator(std::move(validator)) {}
   Setting(QSettings* settings, const QString& key,
-          std::function<T()> defaultValueFunction, QObject* parent = nullptr)
+          std::function<T()> defaultValueFunction, Validator validator = {},
+          QObject* parent = nullptr)
       : SettingWithSignal(parent),
         m_settings(settings),
         m_key(key),
         m_defaultValueFunction(defaultValueFunction),
-        m_defaultIsFunction(true) {}
+        m_defaultIsFunction(true),
+        m_validator(std::move(validator)) {}
   T defaultValue() {
     return m_defaultIsFunction ? m_defaultValueFunction() : m_defaultValue;
   }
@@ -53,24 +62,46 @@ class Setting : public SettingWithSignal {
     }
     emit changed();
   }
+  // Pure accessor. On first access it loads the value from the settings store and
+  // validates it once; later reads return the cached value unchanged.
   const T get() {
-    if (m_cached) return m_value;
-    if constexpr (std::is_same_v<T, QColor>) {
-      m_value = QColor::fromString(
-          m_settings->value(m_key, defaultValue().name(QColor::HexArgb)).toString());
-    } else {
-      m_value = m_settings->value(m_key, defaultValue()).template value<T>();
+    if (!m_cached) {
+      if constexpr (std::is_same_v<T, QColor>) {
+        m_value = QColor::fromString(
+            m_settings->value(m_key, defaultValue().name(QColor::HexArgb)).toString());
+      } else {
+        m_value = m_settings->value(m_key, defaultValue()).template value<T>();
+      }
+      validate();
+      m_cached = true;
     }
-    m_cached = true;
     return m_value;
-  };
+  }
 
  protected:
+  // Validates m_value against m_validator. On failure it emits a clear warning and
+  // replaces m_value with the configured default. Invoked only on first load (get),
+  // the single point where untrusted config-file data enters the setting.
+  void validate() {
+    if (!m_validator) return;
+    if (auto reason = m_validator(m_value)) {
+      qWarning().noquote() << QStringLiteral(
+                                  "Invalid value for setting \"%1\": %2 rejected (%3); "
+                                  "using default %4")
+                                  .arg(m_key)
+                                  .arg(QVariant(m_value).toString())
+                                  .arg(*reason)
+                                  .arg(QVariant(defaultValue()).toString());
+      m_value = defaultValue();
+    }
+  }
+
   QSettings* m_settings;
   QString m_key;
   T m_defaultValue;
   std::function<T()> m_defaultValueFunction;
   bool m_defaultIsFunction;
+  Validator m_validator;
   T m_value;
   bool m_cached = false;
 };

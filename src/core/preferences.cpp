@@ -12,6 +12,19 @@
 #include <QString>
 #include <QStringList>
 
+namespace {
+// Validators for integer settings. Return std::nullopt when valid, otherwise a
+// human-readable reason. A rejected value falls back to the setting's default.
+auto positiveInt = [](int v) -> std::optional<QString> {
+  if (v > 0) return std::nullopt;
+  return QStringLiteral("must be a positive whole number");
+};
+auto nonNegativeInt = [](int v) -> std::optional<QString> {
+  if (v >= 0) return std::nullopt;
+  return QStringLiteral("must not be negative");
+};
+}  // namespace
+
 SanePreferences* SanePreferences::createDefault(QObject* parent) {
   // We prefer settings file next to the app executable to make app more portable
   QFile portableSettings(QCoreApplication::applicationDirPath() + "/SaneBreak.ini");
@@ -26,32 +39,32 @@ SanePreferences::SanePreferences(QSettings* settings, QObject* parent)
     : QObject(parent), settings(settings) {
   shownWelcome = new Setting<bool>(settings, "shown-welcome", false);
 
-  smallEvery = new Setting<int>(settings, "break/small-every", 1200);
-  smallFor = new Setting<int>(settings, "break/small-for", 20);
+  smallEvery = new Setting<int>(settings, "break/small-every", 1200, positiveInt);
+  smallFor = new Setting<int>(settings, "break/small-for", 20, positiveInt);
   bigBreakEnabled = new Setting<bool>(settings, "break/big-enabled", true);
-  bigAfter = new Setting<int>(settings, "break/big-after", 3);
-  bigFor = new Setting<int>(settings, "break/big-for", 60);
+  bigAfter = new Setting<int>(settings, "break/big-after", 3, positiveInt);
+  bigFor = new Setting<int>(settings, "break/big-for", 60, positiveInt);
 
-  focusSmallEvery = new Setting<int>(settings, "focus/small-every", 1200);
-  focusSmallFor = new Setting<int>(settings, "focus/small-for", 20);
+  focusSmallEvery = new Setting<int>(settings, "focus/small-every", 1200, positiveInt);
+  focusSmallFor = new Setting<int>(settings, "focus/small-for", 20, positiveInt);
   focusBigBreakEnabled = new Setting<bool>(settings, "focus/big-enabled", false);
-  focusBigAfter = new Setting<int>(settings, "focus/big-after", 3);
-  focusBigFor = new Setting<int>(settings, "focus/big-for", 60);
+  focusBigAfter = new Setting<int>(settings, "focus/big-after", 3, positiveInt);
+  focusBigFor = new Setting<int>(settings, "focus/big-for", 60, positiveInt);
 
   postponeMaxMinutePercent =
-      new Setting<int>(settings, "postpone/max-minute-ratio", 50);
-  postponeShrinkNextPercent =
-      new Setting<int>(settings, "postpone/shrink-next-session-ratio", 100);
+      new Setting<int>(settings, "postpone/max-minute-ratio", 50, nonNegativeInt);
+  postponeShrinkNextPercent = new Setting<int>(
+      settings, "postpone/shrink-next-session-ratio", 100, nonNegativeInt);
   postponeExtendBreakPercent =
-      new Setting<int>(settings, "postpone/extend-break-ratio", 100);
+      new Setting<int>(settings, "postpone/extend-break-ratio", 100, nonNegativeInt);
 
-  minReasonLength = new Setting<int>(settings, "reason/min-length", 0);
+  minReasonLength = new Setting<int>(settings, "reason/min-length", 0, nonNegativeInt);
 
-  flashFor = new Setting<int>(settings, "break/flash-for", 30);
-  confirmAfter = new Setting<int>(settings, "break/confirm-after", 30);
-  flashTrayFor = new Setting<int>(settings, "break/flash-tray-for", 30);
-  headsUpFor = new Setting<int>(settings, "break/heads-up-for", 30);
-  flashSpeed = new Setting<int>(settings, "break/flash-speed", 120);
+  flashFor = new Setting<int>(settings, "break/flash-for", 30, positiveInt);
+  confirmAfter = new Setting<int>(settings, "break/confirm-after", 30, positiveInt);
+  flashTrayFor = new Setting<int>(settings, "break/flash-tray-for", 30, nonNegativeInt);
+  headsUpFor = new Setting<int>(settings, "break/heads-up-for", 30, nonNegativeInt);
+  flashSpeed = new Setting<int>(settings, "break/flash-speed", 120, nonNegativeInt);
   countDownColor =
       new Setting<QColor>(settings, "theme/count-down", QColor(236, 239, 244, 255));
   messageColor =
@@ -69,7 +82,8 @@ SanePreferences::SanePreferences(QSettings* settings, QObject* parent)
   bigMessages = new Setting<QStringList>(settings, "break/big-msg", []() {
     return QStringList({tr("Time for a big break")});
   });
-  maxForceBreakExits = new Setting<int>(settings, "break/max-force-break-exits", 2);
+  maxForceBreakExits =
+      new Setting<int>(settings, "break/max-force-break-exits", 2, nonNegativeInt);
   autoCloseWindowAfterSmallBreak =
       new Setting<bool>(settings, "break/auto-close-window-after-small-break", true);
   autoCloseWindowAfterBigBreak =
@@ -93,9 +107,10 @@ SanePreferences::SanePreferences(QSettings* settings, QObject* parent)
       new Setting<bool>(settings, "ui/big-break-show-end-time", false);
   bigBreakShowButtons = new Setting<bool>(settings, "ui/big-break-show-buttons", true);
 
-  pauseOnIdleFor = new Setting<int>(settings, "pause/on-idle-for", 180);
-  resetAfterPause = new Setting<int>(settings, "pause/reset-after", 120);
-  resetCycleAfterPause = new Setting<int>(settings, "pause/reset-cycle-after", 300);
+  pauseOnIdleFor = new Setting<int>(settings, "pause/on-idle-for", 180, positiveInt);
+  resetAfterPause = new Setting<int>(settings, "pause/reset-after", 120, positiveInt);
+  resetCycleAfterPause =
+      new Setting<int>(settings, "pause/reset-cycle-after", 300, positiveInt);
   pauseOnBattery = new Setting<bool>(settings, "pause/on-battery", false);
   treatInhibitorAsActivity =
       new Setting<bool>(settings, "pause/treat-inhibitor-as-activity", true);
@@ -113,6 +128,7 @@ SanePreferences::SanePreferences(QSettings* settings, QObject* parent)
 
   language = new Setting<QString>(settings, "language", "");
   autoStart = new Setting<bool>(settings, "auto-start", false);
-  autoScreenLock = new Setting<int>(settings, "break/auto-screen-lock", 0);
+  autoScreenLock =
+      new Setting<int>(settings, "break/auto-screen-lock", 0, nonNegativeInt);
   quickBreak = new Setting<bool>(settings, "break/quick-break", false);
 }

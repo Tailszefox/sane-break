@@ -7,6 +7,7 @@
 
 #include <QDateTime>
 #include <QObject>
+#include <QRegularExpression>
 #include <QSignalSpy>
 #include <QSqlQuery>
 #include <QTest>
@@ -40,6 +41,65 @@ class TestApp : public QObject {
     deps = DummyApp::makeDeps(depsParent);
   }
   void cleanup() { delete depsParent; }
+  // A corrupt config value (below the setting's valid minimum) must normalize to
+  // its default instead of being used as-is. This prevents a division-by-zero
+  // crash in breakDuration() when smallEvery is 0, and keeps other break-math
+  // settings sane. Each invalid read emits an expected "Invalid value for setting"
+  // warning; it's paired with the read that triggers it so the warning/assert
+  // coupling stays local and reorder-safe. init()'s failOnWarning() still catches
+  // any *unexpected* warning.
+  void settings_normalize_invalid_config() {
+    const QRegularExpression invalidMsg("Invalid value for setting");
+
+    QTemporaryFile tempFile;
+    QVERIFY(tempFile.open());
+    QString path = tempFile.fileName();
+    tempFile.close();
+    {
+      QSettings s(path, QSettings::IniFormat);
+      s.setValue("break/small-every", 0);
+      s.setValue("break/small-for", 5);  // valid
+      s.setValue("break/big-after", 0);
+      s.setValue("break/flash-for", 0);
+      s.setValue("pause/reset-after", 0);
+      s.setValue("postpone/max-minute-ratio", -20);
+      s.setValue("postpone/shrink-next-session-ratio", -1);
+      s.setValue("break/flash-speed", -1);
+      s.setValue("break/max-force-break-exits", -1);
+      s.setValue("break/auto-screen-lock", -1);
+      s.setValue("break/confirm-after", 0);
+      s.setValue("break/flash-tray-for", -5);
+      s.setValue("pause/on-idle-for", 0);
+      s.sync();
+    }
+    SanePreferences p(new QSettings(path, QSettings::IniFormat));
+
+    // Read a setting and, if it is expected to warn, consume that warning here.
+    // The QCOMPARE is the real check; the ignoreMessage merely declares "this
+    // warning is expected" so failOnWarning() still guards anything unexpected.
+    auto check = [&](Setting<int>* setting, int expected, bool warns) {
+      if (warns) QTest::ignoreMessage(QtWarningMsg, invalidMsg);
+      QCOMPARE(setting->get(), expected);
+    };
+
+    // positiveInt bound -> stored <= 0 normalizes to default
+    check(p.smallEvery, 1200, true);      // 0
+    check(p.bigAfter, 3, true);           // 0
+    check(p.flashFor, 30, true);          // 0
+    check(p.resetAfterPause, 120, true);  // 0
+    // nonNegativeInt bound -> stored < 0 normalizes to default
+    check(p.postponeMaxMinutePercent, 50, true);    // -20
+    check(p.postponeShrinkNextPercent, 100, true);  // -1
+    check(p.flashSpeed, 120, true);                 // -1
+    check(p.maxForceBreakExits, 2, true);           // -1
+    check(p.autoScreenLock, 0, true);               // -1
+    // a valid stored value is kept as-is (no warning emitted)
+    check(p.smallFor, 5, false);
+    // more invalid reads across both bounds
+    check(p.confirmAfter, 30, true);     // 0
+    check(p.flashTrayFor, 30, true);     // -5
+    check(p.pauseOnIdleFor, 180, true);  // 0
+  }
   void app_initial_state() {
     NiceMock<DummyApp> app(deps);
     app.start();
