@@ -7,6 +7,7 @@
 
 #include <QDateTime>
 #include <QObject>
+#include <QRegularExpression>
 #include <QSignalSpy>
 #include <QSqlQuery>
 #include <QTest>
@@ -40,6 +41,67 @@ class TestApp : public QObject {
     deps = DummyApp::makeDeps(depsParent);
   }
   void cleanup() { delete depsParent; }
+  // A corrupt config value (below the setting's valid minimum) must normalize to
+  // its default instead of being used as-is. This prevents a division-by-zero
+  // crash in breakDuration() when smallEvery is 0, and keeps other break-math
+  // settings sane. Each invalid read emits an expected "Invalid value for setting"
+  // warning; it's paired with the read that triggers it so the warning/assert
+  // coupling stays local and reorder-safe. init()'s failOnWarning() still catches
+  // any *unexpected* warning.
+  void settings_normalize_invalid_config() {
+    const QRegularExpression invalidMsg("Invalid value for setting");
+
+    QTemporaryFile tempFile;
+    QVERIFY(tempFile.open());
+    QString path = tempFile.fileName();
+    tempFile.close();
+    {
+      QSettings s(path, QSettings::IniFormat);
+      s.setValue("break/small-every", 0);
+      s.setValue("break/small-for", 5);  // valid
+      s.setValue("break/big-after", 0);
+      s.setValue("break/flash-for", 0);
+      s.setValue("pause/reset-after", 0);
+      s.setValue("postpone/max-minute-ratio", -20);
+      s.setValue("postpone/shrink-next-session-ratio", -1);
+      s.setValue("break/flash-speed", -1);
+      s.setValue("break/max-force-break-exits", -1);
+      s.setValue("break/auto-screen-lock", -1);
+      s.setValue("break/confirm-after", 0);
+      s.setValue("break/flash-tray-for", -5);
+      s.setValue("pause/on-idle-for", 0);
+      s.sync();
+    }
+    SanePreferences p(new QSettings(path, QSettings::IniFormat));
+
+    // Read a setting and, if it is expected to warn, consume that warning here.
+    // The QCOMPARE is the real check; the ignoreMessage merely declares "this
+    // warning is expected" so failOnWarning() still guards anything unexpected.
+    auto check = [&](Setting<int>* setting, int expected, bool warns) {
+      if (warns) QTest::ignoreMessage(QtWarningMsg, invalidMsg);
+      QCOMPARE(setting->get(), expected);
+    };
+
+    // positiveInt bound -> stored <= 0 normalizes to default
+    check(p.smallEvery, 1200, true);      // 0
+    check(p.bigAfter, 3, true);           // 0
+    check(p.flashFor, 30, true);          // 0
+    check(p.resetAfterPause, 120, true);  // 0
+    // nonNegativeInt bound -> stored < 0 normalizes to default
+    // Fork defaults: postponing is uncapped (1000) and does not shrink the next
+    // session (0); upstream's defaults here are 50 and 100.
+    check(p.postponeMaxMinutePercent, 1000, true);  // -20
+    check(p.postponeShrinkNextPercent, 0, true);    // -1
+    check(p.flashSpeed, 120, true);                 // -1
+    check(p.maxForceBreakExits, 2, true);           // -1
+    check(p.autoScreenLock, 0, true);               // -1
+    // a valid stored value is kept as-is (no warning emitted)
+    check(p.smallFor, 5, false);
+    // more invalid reads across both bounds
+    check(p.confirmAfter, 30, true);     // 0
+    check(p.flashTrayFor, 30, true);     // -5
+    check(p.pauseOnIdleFor, 180, true);  // 0
+  }
   void app_initial_state() {
     NiceMock<DummyApp> app(deps);
     app.start();
@@ -212,6 +274,44 @@ class TestApp : public QObject {
     app.advanceToBreakEnd();
     QVERIFY(!app.trayData.isBreaking);
     QCOMPARE(deps.idleTimer->recordedMode(), IdleMode::InhibitorAware);
+  }
+  // State entries apply the idle threshold and mode in one setIdleDetection() call
+  // (backends that re-arm their watcher only re-create the request once), with the
+  // right values for each state.
+  void idle_settings_applied_together_on_state_entries() {
+    NiceMock<DummyApp> app(deps);
+    app.start();
+    QCOMPARE(deps.idleTimer->recordedMode(), IdleMode::InhibitorAware);
+    QCOMPARE(deps.idleTimer->recordedMinIdleTime(),
+             deps.preferences->pauseOnIdleFor->get() * 1000);
+
+    app.advance(app.trayData.secondsToNextBreak);
+    QVERIFY(app.trayData.isBreaking);
+    QCOMPARE(deps.idleTimer->recordedMode(), IdleMode::InputOnly);
+    QCOMPARE(deps.idleTimer->recordedMinIdleTime(), 2000);
+
+    app.advanceToBreakEnd();
+    QVERIFY(!app.trayData.isBreaking);
+    QCOMPARE(deps.idleTimer->recordedMode(), IdleMode::InhibitorAware);
+    QCOMPARE(deps.idleTimer->recordedMinIdleTime(),
+             deps.preferences->pauseOnIdleFor->get() * 1000);
+  }
+  // Some backends (InhibitorProxyIdleTime over Wayland) emit idleStart
+  // synchronously from setIdleDetection when a break enters while the user is idle
+  // and an inhibitor had masked the pause. The phase does not exist yet during
+  // enter(); the signal must be dropped and the initial phase picked from
+  // idleTimer->isIdle() right after, instead of dereferencing a null phase.
+  void idle_start_during_break_entry_is_handled_safely() {
+    NiceMock<DummyApp> app(deps);
+    app.start();
+    deps.idleTimer->setEmitIdleStartOnDetection(true);
+    app.advance(app.trayData.secondsToNextBreak);
+    QVERIFY(app.trayData.isBreaking);
+    // The synchronous signal set the idle state, so enter() chose the full-screen
+    // phase from idleTimer->isIdle() and the break still completes normally.
+    QVERIFY(deps.idleTimer->isIdle());
+    app.advanceToBreakEnd();
+    QVERIFY(!app.trayData.isBreaking);
   }
   // Force break also uses InputOnly — an inhibitor must not prevent force-break
   // escalation when the user is actually active.
@@ -648,6 +748,102 @@ class TestApp : public QObject {
     app.advance(1);
     QCOMPARE(app.trayData.secondsToNextBreak, secondsToNextBreak - 1);
   }
+  // A program-monitor pause (e.g. a meeting app running) must be honored even
+  // while a break is postponed. Otherwise the postponed break fires mid-meeting.
+  void pause_request_honored_during_postpone() {
+    NiceMock<DummyApp> app(deps);
+    app.start();
+
+    app.postpone(120);
+    QVERIFY(app.trayData.isPostponing);
+
+    emit deps.systemMonitor->pauseRequested(PauseReason::AppOpen);
+    QCOMPARE(app.trayData.pauseReasons, PauseReason::AppOpen);
+    // Countdown frozen while paused: the postponed break must not fire.
+    int secondsToNextBreak = app.trayData.secondsToNextBreak;
+    app.advance(secondsToNextBreak + 10);
+    QVERIFY(!app.trayData.isBreaking);
+    QCOMPARE(app.trayData.secondsToNextBreak, secondsToNextBreak);
+
+    // Once the meeting app closes, the countdown resumes and the postponed break
+    // fires.
+    emit deps.systemMonitor->resumeRequested(PauseReason::AppOpen);
+    QVERIFY(!app.trayData.pauseReasons);
+    app.advance(1);
+    QCOMPARE(app.trayData.secondsToNextBreak, secondsToNextBreak - 1);
+  }
+
+  // A pause that runs past the end of the would-be (postponed) break fulfills the
+  // postpone: the break is considered taken, the postpone is discarded, and the
+  // countdown restarts fresh.
+  void long_pause_during_postpone_voids_postpone() {
+    deps.preferences->pauseOnBattery->set(true);
+    deps.preferences->smallEvery->set(100);
+    deps.preferences->smallFor->set(10);
+    NiceMock<DummyApp> app(deps);
+    app.start();
+
+    app.postpone(50);  // countdown 150
+    QVERIFY(app.trayData.isPostponing);
+
+    emit deps.systemMonitor->pauseRequested(PauseReason::OnBattery);
+    app.advance(200);  // pause covers the break ending at 150 + 10
+    emit deps.systemMonitor->resumeRequested(PauseReason::OnBattery);
+
+    QVERIFY(!app.trayData.isPostponing);
+    QCOMPARE(app.trayData.secondsToNextBreak, 100);
+  }
+  // ...and the postponed break's penalties (extended break, shrunk next session)
+  // must not apply to the next cycle.
+  void long_pause_during_postpone_clears_penalties() {
+    deps.preferences->pauseOnBattery->set(true);
+    deps.preferences->smallEvery->set(100);
+    deps.preferences->smallFor->set(10);
+    NiceMock<DummyApp> app(deps);
+    app.start();
+
+    app.postpone(50);
+    emit deps.systemMonitor->pauseRequested(PauseReason::OnBattery);
+    app.advance(200);
+    emit deps.systemMonitor->resumeRequested(PauseReason::OnBattery);
+    QCOMPARE(app.trayData.secondsToNextBreak, 100);
+
+    // Next break completes with a full session: no shrink from the discarded postpone
+    app.advance(app.trayData.secondsToNextBreak);
+    app.advanceToBreakEnd();
+    QCOMPARE(app.trayData.secondsToNextBreak, 100);
+  }
+  // A short pause that does not cover the postponed break keeps the postpone intact.
+  void short_pause_during_postpone_keeps_postpone() {
+    deps.preferences->pauseOnBattery->set(true);
+    deps.preferences->smallEvery->set(100);
+    deps.preferences->smallFor->set(10);
+    NiceMock<DummyApp> app(deps);
+    app.start();
+
+    app.postpone(50);  // countdown 150
+    emit deps.systemMonitor->pauseRequested(PauseReason::OnBattery);
+    app.advance(100);  // 100 < 150 + 10: break not covered
+    emit deps.systemMonitor->resumeRequested(PauseReason::OnBattery);
+
+    QVERIFY(app.trayData.isPostponing);
+    QCOMPARE(app.trayData.secondsToNextBreak, 150);
+  }
+  // A long sleep during postpone has the same effect as a long pause: the postpone
+  // is discarded and the countdown restarts fresh.
+  void long_sleep_during_postpone_voids_postpone() {
+    deps.preferences->smallEvery->set(100);
+    deps.preferences->smallFor->set(10);
+    NiceMock<DummyApp> app(deps);
+    app.start();
+
+    app.postpone(50);                          // countdown 150
+    emit deps.systemMonitor->sleepEnded(200);  // covers the break ending at 160
+
+    QVERIFY(!app.trayData.isPostponing);
+    QCOMPARE(app.trayData.secondsToNextBreak, 100);
+  }
+
   // If paused for a long time, we consider the user has taken a break and reset timer.
   void reset_countdown_after_pause() {
     NiceMock<DummyApp> app(deps);
@@ -1250,7 +1446,9 @@ class TestApp : public QObject {
 
     QVERIFY(!query.next());
   }
-  // Idling during a postponement pauses the countdown like in any other work session
+  // Idling during a postponement pauses the countdown like in any other work session.
+  // Fork-only: upstream suppresses idle pauses while postponing (and tests the
+  // opposite in idle_ignored_during_postpone), which is dropped on every merge.
   void pause_during_postpone() {
     NiceMock<DummyApp> app(deps);
     app.start();

@@ -59,6 +59,22 @@
   </screenshots>
 
   <releases>
+  <release version="0.10.5" date="2026-08-26">
+    <url type="details">https://github.com/AllanChain/sane-break/releases/tag/v0.10.5</url>
+    <description>
+      <p>Bug fixes</p>
+      <ul>
+        <li>Bound invalid settings from file</li>
+        <li>Honor pause requests during postpone</li>
+        <li>Guard idle signals before the first break phase</li>
+        <li>Preserve Wayland idleness across listener switches</li>
+      </ul>
+      <p>Other improvements</p>
+      <ul>
+        <li>No heads-up blinking to distinguish from breaks</li>
+      </ul>
+    </description>
+  </release>
   <release version="0.10.4" date="2026-08-01">
     <url type="details">https://github.com/AllanChain/sane-break/releases/tag/v0.10.4</url>
     <description>

@@ -147,20 +147,19 @@ void AppContext::checkBreakReadiness() {
   if (secondsToNextBreak <= 0) transitionTo(std::make_unique<AppStateBreak>());
 }
 
-void AppContext::applyIdleMode() {
-  idleTimer->setIdleMode(preferences->treatInhibitorAsActivity->get()
-                             ? IdleMode::InhibitorAware
-                             : IdleMode::InputOnly);
+IdleMode AppContext::preferredIdleMode() const {
+  return preferences->treatInhibitorAsActivity->get() ? IdleMode::InhibitorAware
+                                                      : IdleMode::InputOnly;
 }
 
 void AppStateNormal::enter(AppContext* app) {
   app->openCurrentSpan("normal");
   // Use low accuracy (5s) for idle detection in normal state as it can last a long time
   app->idleTimer->setWatchAccuracy(5000);
-  app->idleTimer->setMinIdleTime(app->preferences->pauseOnIdleFor->get() * 1000);
-  // Restore the user's preferred idle mode (inhibitor-aware idle pause suppression
-  // belongs here, not during breaks which override it to InputOnly).
-  app->applyIdleMode();
+  // Restore the user's preferred idle threshold and mode (inhibitor-aware idle
+  // pause suppression belongs here, not during breaks which override it to InputOnly).
+  app->idleTimer->setIdleDetection(app->preferences->pauseOnIdleFor->get() * 1000,
+                                   app->preferredIdleMode());
 }
 void AppStateNormal::exit(AppContext* app) {
   app->closeCurrentSpan();
@@ -171,10 +170,16 @@ void AppStateNormal::tick(AppContext* app) {
   app->checkBreakReadiness();
 }
 void AppStateNormal::onIdleStart(AppContext* app) {
+  // Unlike upstream, idle is not suppressed while a break is postponed: postponing
+  // is unlimited here, so a postponed session is an ordinary work session and idling
+  // through it pauses the countdown like any other.
   app->data->pause().addReasons(PauseReason::Idle);
   app->transitionTo(std::make_unique<AppStatePaused>());
 }
 void AppStateNormal::onPauseRequest(AppContext* app, PauseReasons) {
+  // Explicit pause requests (meeting apps, battery, external control, ...) are
+  // honored even while a break is postponed: a user-configured pause takes
+  // precedence over the postponed break.
   app->transitionTo(std::make_unique<AppStatePaused>());
 }
 void AppStateNormal::onMenuAction(AppContext* app, MenuAction action) {
@@ -208,30 +213,7 @@ void AppStatePaused::enter(AppContext* app) {
  */
 void AppStatePaused::exit(AppContext* app) {
   app->closeCurrentSpan(pausedSpanData(m_currentSpanReasons));
-  BreakConfig config = app->data->currentBreakConfig();
-  // Calculate the total duration of the next break to determine if breaks would have
-  // occurred during pause
-  int nextBreakDuration =
-      (app->data->breakType() == BreakType::Big ? config.bigFor : config.smallFor);
-  int secondsToNextBreakEnd =
-      app->data->schedule().secondsToNextBreak() + nextBreakDuration;
-  // If user was paused longer than the break duration or longer than resetAfterPause
-  // setting, refill the break timer to avoid immediate breaks
-  if (app->data->pause().secondsPaused() > secondsToNextBreakEnd ||
-      app->data->pause().secondsPaused() > app->preferences->resetAfterPause->get()) {
-    app->data->schedule().refillSecondsToNextBreak(config);
-    // The pause counts as the rest the postponed break would have provided, so drop
-    // the postpone penalties instead of also extending the next break and shrinking
-    // the session that follows it.
-    app->data->schedule().resetPostpone();
-  }
-  // If user was paused longer than resetCycleAfterPause setting, reset the entire break
-  // cycle
-  if (app->data->pause().secondsPaused() >
-      app->preferences->resetCycleAfterPause->get()) {
-    app->data->resetBreakCycle();
-  }
-  app->data->pause().resetSecondsPaused();
+  app->data->settlePauseAfterResume();
   // Ensure pause reasons are cleared on exit
   app->data->pause().clearReasons();
   m_currentSpanType.clear();
@@ -318,12 +300,11 @@ void AppStateBreak::enter(AppContext* app) {
   // Use high accuracy (500ms) for idle detection during breaks for responsive
   // transitions
   app->idleTimer->setWatchAccuracy(500);
-  app->idleTimer->setMinIdleTime(2000);
   // Breaks always use raw input idle (InputOnly), ignoring idle inhibitors. A
   // background video player holding an inhibitor must not make the break think the
   // user is active — we need to detect actual presence to drive phase transitions
   // (prompt ↔ full-screen), force-break escalation, and post-break auto-close.
-  app->idleTimer->setIdleMode(IdleMode::InputOnly);
+  app->idleTimer->setIdleDetection(2000, IdleMode::InputOnly);
   app->breakWindows->create(app->data->breakType(), app->preferences,
                             data->totalSeconds(),
                             app->data->schedule().isBreakExtendedByPostpone());
@@ -345,9 +326,21 @@ void AppStateBreak::exit(AppContext* app) {
 }
 void AppStateBreak::tick(AppContext* app) { m_currentPhase->tick(app, this); }
 void AppStateBreak::onIdleStart(AppContext* app) {
+  // Idle signals only make sense relative to an existing phase — they drive the
+  // Prompt <-> FullScreen transitions. During enter() no phase exists yet, and the
+  // initial phase is picked from idleTimer->isIdle() instead. setIdleDetection()
+  // can still fire idleStart synchronously (the proxy re-evaluates on a mode
+  // change), but that signal reports the same state the isIdle() check is about to
+  // read, so dropping it cannot change the chosen phase.
+  if (!m_currentPhase) return;
   m_currentPhase->onIdleStart(app, this);
 }
-void AppStateBreak::onIdleEnd(AppContext* app) { m_currentPhase->onIdleEnd(app, this); }
+void AppStateBreak::onIdleEnd(AppContext* app) {
+  // Same invariant: before the first phase exists, the idle state is applied by
+  // enter()'s isIdle() check, not by these signals.
+  if (!m_currentPhase) return;
+  m_currentPhase->onIdleEnd(app, this);
+}
 void AppStateBreak::onPauseRequest(AppContext* app, PauseReasons reasons) {
   // We don't exit break if request pause on idle - continue with break instead
   if (reasons != PauseReason::Idle) {
@@ -536,8 +529,8 @@ void AppStateMeeting::enter(AppContext* app) {
                         {"reason", app->data->meeting().reason()}});
   app->data->schedule().resetSecondsToNextBreak(app->data->currentBreakConfig());
   app->idleTimer->setWatchAccuracy(5000);
-  app->idleTimer->setMinIdleTime(app->preferences->pauseOnIdleFor->get() * 1000);
-  app->applyIdleMode();
+  app->idleTimer->setIdleDetection(app->preferences->pauseOnIdleFor->get() * 1000,
+                                   app->preferredIdleMode());
 }
 
 void AppStateMeeting::exit(AppContext* app) {
